@@ -1,0 +1,1121 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>易经占卜 - 梅花易数</title>
+    <!-- 使用系统字体，无需加载外部字体 -->
+    <style>
+        :root {
+            --gold: #C9A227;
+            --gold-light: #E8D48A;
+            --gold-dark: #8B6914;
+            --red: #8B2323;
+            --red-light: #CD5C5C;
+            --jade: #2E8B57;
+            --blue: #4169E1;
+            --bg-dark: #0A0A0F;
+            --bg-card: #12121A;
+            --bg-card-alt: #161620;
+            --text: #E5E5E5;
+            --text-dim: #888;
+            --border: rgba(201, 162, 39, 0.2);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Hiragino Sans GB', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+            overflow-x: hidden; /* 防止移动端横向滚动 */
+        }
+
+        /* 背景大太极 */
+        .bg-effects {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .bg-taiji {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 50vmin;
+            height: 50vmin;
+            transform: translate(-50%, -50%);
+            opacity: 0.025;
+            color: var(--gold);
+            animation: bg-spin 9s linear infinite;
+        }
+
+        @keyframes bg-spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 25px 15px;
+        }
+
+        /* 标题区 */
+        header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        header h1 {
+            font-family: 'STKaiti', 'KaiTi', 'Noto Serif SC', serif;
+            font-size: clamp(2rem, 7vw, 3.5rem);
+            color: var(--gold);
+            text-shadow: 0 0 30px rgba(201, 162, 39, 0.25);
+            letter-spacing: 0.12em;
+        }
+
+        header p {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            letter-spacing: 0.25em;
+            margin-top: 5px;
+        }
+
+        .divider {
+            width: 100px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--gold), transparent);
+            margin: 12px auto;
+        }
+
+        /* 输入区 */
+        .input-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .input-row {
+            display: grid;
+            grid-template-columns: 180px 1fr auto;
+            gap: 12px;
+            align-items: end;
+        }
+
+        @media (max-width: 640px) {
+            .input-row { grid-template-columns: 1fr; }
+        }
+
+        .form-group label {
+            display: block;
+            color: var(--gold);
+            font-size: 0.8rem;
+            margin-bottom: 6px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px 14px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--gold);
+            box-shadow: 0 0 12px rgba(201, 162, 39, 0.15);
+        }
+
+        .btn-divine {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px 28px;
+            background: linear-gradient(135deg, var(--gold-dark), var(--gold));
+            border: none;
+            border-radius: 6px;
+            color: #000;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+
+        .btn-divine:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(201, 162, 39, 0.3);
+        }
+        
+        .btn-taiji {
+            width: 20px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+
+        /* ================= 加载动画（完美同心修正版） ================= */
+        
+        /* 全屏遮罩 */
+        .loading {
+            display: none; /* JS控制切换 flex/none */
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: rgba(10, 10, 15, 0.85);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.5s ease;
+        }
+
+        .loading.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* 
+           核心容器：定死尺寸，确立唯一坐标系 
+           所有子元素将相对于此容器绝对定位
+        */
+        .loading-container {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            margin-bottom: 30px;
+        }
+
+        /* 层级 1：外圈罗盘 (inset:0 撑满容器) */
+        .loading-ring {
+            position: absolute;
+            inset: 0; 
+            margin: 10px; /* 稍微内缩，给光晕留空间 */
+            border-radius: 50%;
+            border: 1px dashed rgba(201, 162, 39, 0.3);
+            box-shadow: 0 0 30px rgba(201, 162, 39, 0.1);
+            animation: spin 12s linear infinite;
+        }
+
+        .loading-ring::before {
+            content: '';
+            position: absolute;
+            inset: 5px;
+            border-radius: 50%;
+            border: 2px solid transparent;
+            border-top-color: var(--gold);
+            border-bottom-color: rgba(201, 162, 39, 0.1);
+            filter: drop-shadow(0 0 8px var(--gold));
+            animation: spin 3s cubic-bezier(0.68, -0.55, 0.27, 1.55) infinite;
+        }
+
+        .loading-ring::after {
+            content: '';
+            position: absolute;
+            inset: 15px;
+            border-radius: 50%;
+            border: 1px solid rgba(201, 162, 39, 0.15);
+            animation: spin 8s linear infinite reverse;
+        }
+
+        /* 层级 2：中心太极 (inset:0 撑满容器) */
+        .loading-taiji {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gold);
+            filter: drop-shadow(0 0 15px rgba(201, 162, 39, 0.5));
+            animation: taiji-float 9s ease-in-out infinite;
+            z-index: 2;
+        }
+        
+        .loading-taiji svg {
+            width: 80px;
+            height: 80px;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        @keyframes taiji-float {
+            0%, 100% { transform: rotate(0deg) scale(1); filter: brightness(1); }
+            50% { transform: rotate(180deg) scale(1.1); filter: brightness(1.3); }
+        }
+
+        /* 层级 3：八卦阵列 (inset:0 撑满容器) */
+        .loading-gua-ring {
+            position: absolute;
+            inset: 0;
+            animation: spin 20s linear infinite;
+            pointer-events: none;
+        }
+
+        .loading-gua-item {
+            position: absolute;
+            /* 定位到中心点 */
+            top: 50%;
+            left: 50%;
+            width: 40px;
+            height: 40px;
+            /* 负margin归零几何中心 */
+            margin-left: -20px;
+            margin-top: -20px;
+            
+            font-size: 1.4rem;
+            color: var(--gold-light);
+            opacity: 0.8;
+            text-shadow: 0 0 5px var(--gold);
+            
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 
+           使用 transform 极坐标定位
+           translateY(-68px) = 半径
+        */
+        .loading-gua-item:nth-child(1) { transform: rotate(0deg)   translateY(-68px) rotate(0deg); }
+        .loading-gua-item:nth-child(2) { transform: rotate(45deg)  translateY(-68px) rotate(-45deg); }
+        .loading-gua-item:nth-child(3) { transform: rotate(90deg)  translateY(-68px) rotate(-90deg); }
+        .loading-gua-item:nth-child(4) { transform: rotate(135deg) translateY(-68px) rotate(-135deg); }
+        .loading-gua-item:nth-child(5) { transform: rotate(180deg) translateY(-68px) rotate(-180deg); }
+        .loading-gua-item:nth-child(6) { transform: rotate(225deg) translateY(-68px) rotate(-225deg); }
+        .loading-gua-item:nth-child(7) { transform: rotate(270deg) translateY(-68px) rotate(-270deg); }
+        .loading-gua-item:nth-child(8) { transform: rotate(315deg) translateY(-68px) rotate(-315deg); }
+
+        /* 六爻生成区 */
+        .loading-hexagram {
+            display: flex;
+            flex-direction: column; /* 上爻在上，初爻在下 */
+            gap: 6px;
+            margin-bottom: 20px;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .loading-hexagram::before, .loading-hexagram::after {
+            content: '';
+            position: absolute;
+            top: 0; bottom: 0;
+            width: 1px;
+            background: linear-gradient(to bottom, transparent, var(--gold), transparent);
+            opacity: 0.3;
+        }
+        .loading-hexagram::before { left: -15px; }
+        .loading-hexagram::after { right: -15px; }
+
+        .loading-yao {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            height: 6px;
+            width: 60px;
+        }
+
+        .loading-yao span {
+            height: 100%;
+            background: var(--gold);
+            border-radius: 2px;
+            box-shadow: 0 0 8px rgba(201, 162, 39, 0.5);
+            opacity: 0;
+            transform: scaleX(0);
+            animation: yao-appear 1.5s ease-out infinite;
+        }
+
+        .loading-yao.yang span { width: 100%; }
+        .loading-yao.yin span { width: 42%; }
+
+        /* 动画延迟：从下往上 (初爻 -> 上爻) */
+        /* nth-child(6) 是视觉上的最下面（初爻） */
+        .loading-yao:nth-child(6) span { animation-delay: 0s; }
+        .loading-yao:nth-child(5) span { animation-delay: 0.2s; }
+        .loading-yao:nth-child(4) span { animation-delay: 0.4s; }
+        .loading-yao:nth-child(3) span { animation-delay: 0.6s; }
+        .loading-yao:nth-child(2) span { animation-delay: 0.8s; }
+        .loading-yao:nth-child(1) span { animation-delay: 1.0s; }
+
+        @keyframes yao-appear {
+            0% { opacity: 0; transform: scaleX(0); box-shadow: none; }
+            20% { opacity: 1; transform: scaleX(1); box-shadow: 0 0 15px var(--gold); background: #fff; }
+            50% { opacity: 0.6; transform: scaleX(1); background: var(--gold); }
+            100% { opacity: 0; transform: scaleX(1); }
+        }
+
+        /* 文字区域 */
+        .loading-text-group {
+            text-align: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        .loading-text {
+            font-family: 'STKaiti', 'KaiTi', 'Noto Serif SC', serif;
+            color: var(--gold);
+            font-size: 1.4rem;
+            letter-spacing: 0.3em;
+            margin-bottom: 5px;
+            text-shadow: 0 0 10px rgba(201, 162, 39, 0.3);
+            animation: text-glow 2s ease-in-out infinite;
+        }
+
+        .loading-subtext {
+            font-size: 0.75rem;
+            color: var(--text-dim);
+            letter-spacing: 0.15em;
+            text-transform: uppercase;
+        }
+
+        @keyframes text-glow {
+            0%, 100% { text-shadow: 0 0 10px rgba(201, 162, 39, 0.3); opacity: 0.8; }
+            50% { text-shadow: 0 0 20px rgba(201, 162, 39, 0.8), 0 0 40px var(--gold); opacity: 1; }
+        }
+
+        .loading-progress {
+            width: 120px;
+            height: 2px;
+            background: rgba(255,255,255,0.1);
+            margin-top: 15px;
+            border-radius: 2px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .loading-progress::after {
+            content: '';
+            position: absolute;
+            left: 0; top: 0;
+            height: 100%; width: 30%;
+            background: var(--gold);
+            box-shadow: 0 0 10px var(--gold);
+            animation: progress-slide 1.5s ease-in-out infinite;
+        }
+
+        @keyframes progress-slide {
+            0% { left: -30%; }
+            100% { left: 100%; }
+        }
+
+        /* 结果展示区 */
+        .result { display: none; padding-bottom: 50px; }
+        .result.show { display: block; animation: fade-in 0.6s ease-out; }
+        
+        @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* 问题框 */
+        .question-box {
+            background: linear-gradient(135deg, rgba(139, 35, 35, 0.12), rgba(139, 35, 35, 0.05));
+            border: 1px solid rgba(139, 35, 35, 0.25);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+        .question-box .label { font-size: 0.75rem; color: var(--red-light); margin-bottom: 4px; }
+
+        /* 时间表格 */
+        .time-info {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+        .time-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .time-item {
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 14px;
+            text-align: center;
+            min-width: 75px;
+        }
+        .time-item .label { font-size: 0.7rem; color: var(--text-dim); }
+        .time-item .value { font-size: 1.1rem; color: var(--gold); font-weight: 600; margin-top: 2px; }
+        .time-item.lunar .value { font-size: 0.85rem; }
+        .time-item.leap-month { border-color: var(--red); background: rgba(139, 35, 35, 0.15); }
+        .leap-badge { display: inline-block; background: var(--red); color: #fff; font-size: 0.6rem; padding: 1px 4px; border-radius: 3px; margin-left: 4px; }
+
+        /* 卦象卡片网格 */
+        .trigrams-panel {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        @media (max-width: 800px) { .trigrams-panel { grid-template-columns: 1fr; } }
+
+        .gua-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 16px;
+            position: relative;
+        }
+        .gua-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: 10px 10px 0 0; }
+        .gua-card.ben::before { background: linear-gradient(90deg, var(--red), var(--gold)); }
+        .gua-card.hu::before { background: linear-gradient(90deg, var(--jade), var(--gold)); }
+        .gua-card.bian::before { background: linear-gradient(90deg, var(--blue), var(--gold)); }
+
+        .gua-header { text-align: center; margin-bottom: 12px; }
+        .gua-type { font-size: 0.75rem; color: var(--text-dim); letter-spacing: 0.12em; }
+        .gua-card.ben .gua-type { color: var(--red-light); }
+        .gua-card.hu .gua-type { color: var(--jade); }
+        .gua-card.bian .gua-type { color: var(--blue); }
+        .gua-name { font-family: 'STKaiti', 'KaiTi', 'Noto Serif SC', serif; font-size: 1.5rem; color: var(--text); margin-top: 4px; }
+
+        .gua-symbols { display: flex; justify-content: center; align-items: center; gap: 12px; margin: 12px 0; }
+        .trigram-symbols { display: flex; flex-direction: column; align-items: center; }
+        .trigram-symbol { font-size: 2rem; color: var(--gold); line-height: 0.9; }
+        .trigram-labels { display: flex; flex-direction: column; gap: 2px; }
+        .trigram-label { font-size: 0.8rem; color: var(--text-dim); }
+        .trigram-label .pos { color: var(--gold); font-size: 0.7rem; margin-right: 4px; }
+
+        .gua-meta {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 0.8rem; margin: 10px 0; padding: 10px;
+            background: rgba(0, 0, 0, 0.2); border-radius: 6px;
+        }
+        .gua-meta-item { display: flex; justify-content: space-between; }
+        .gua-meta-item .k { color: var(--text-dim); }
+        .gua-meta-item .v { color: var(--text); }
+
+        .dong-yao-badge { display: inline-block; background: var(--red); color: #fff; padding: 3px 10px; border-radius: 15px; font-size: 0.75rem; margin-bottom: 8px; }
+
+        .gua-text { border-left: 2px solid var(--gold); padding-left: 10px; margin: 8px 0; }
+        .gua-text .title { font-size: 0.7rem; color: var(--gold); margin-bottom: 2px; }
+        .gua-text .content { font-size: 0.85rem; color: var(--text); }
+
+        .dong-yao-ci {
+            background: linear-gradient(135deg, rgba(139, 35, 35, 0.15), rgba(139, 35, 35, 0.05));
+            border-left: 2px solid var(--red); padding: 8px 10px; border-radius: 0 6px 6px 0; margin: 10px 0;
+        }
+        .dong-yao-ci .title { color: var(--red-light); }
+
+        .fortune-tag {
+            display: inline-block; padding: 4px 14px; border-radius: 15px; font-size: 0.8rem; font-weight: 600; margin-top: 8px;
+        }
+        .fortune-tag.大吉 { background: linear-gradient(135deg, #FFD700, #FFA500); color: #000; }
+        .fortune-tag.吉 { background: linear-gradient(135deg, #2E8B57, #228B22); color: #fff; }
+        .fortune-tag.中吉 { background: linear-gradient(135deg, #4169E1, #1E90FF); color: #fff; }
+        .fortune-tag.中 { background: linear-gradient(135deg, #708090, #696969); color: #fff; }
+        .fortune-tag.凶 { background: linear-gradient(135deg, #8B0000, #DC143C); color: #fff; }
+
+        /* 体用分析 */
+        .tiyong-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+        .panel-title { text-align: center; color: var(--gold); font-size: 0.95rem; margin-bottom: 14px; letter-spacing: 0.12em; }
+        .tiyong-content { display: grid; grid-template-columns: 1fr auto 1fr; gap: 20px; align-items: center; }
+        @media (max-width: 600px) { .tiyong-content { grid-template-columns: 1fr; gap: 12px; } }
+
+        .tiyong-item { text-align: center; padding: 14px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; }
+        .tiyong-item .type-label { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 6px; }
+        .tiyong-item .gua-sym { font-size: 2.2rem; color: var(--gold); }
+        .tiyong-item .gua-info .name { font-size: 1.1rem; font-weight: 600; }
+        .tiyong-item .gua-info .element { font-size: 0.85rem; color: var(--text-dim); }
+
+        .tiyong-relation { text-align: center; }
+        .tiyong-relation .arrow { font-size: 1.8rem; color: var(--gold); }
+        .tiyong-relation .type { display: inline-block; background: var(--gold); color: #000; padding: 4px 14px; border-radius: 15px; font-size: 0.85rem; font-weight: 600; margin-top: 6px; }
+
+        .tiyong-analysis {
+            margin-top: 14px; padding: 12px; background: rgba(46, 139, 87, 0.1); border-radius: 6px; text-align: center; color: var(--jade); font-size: 0.9rem;
+        }
+        .tiyong-fortune { display: inline-block; margin-left: 8px; padding: 2px 10px; border-radius: 10px; font-size: 0.8rem; font-weight: 600; }
+        .tiyong-fortune.吉 { background: var(--jade); color: #fff; }
+        .tiyong-fortune.凶 { background: var(--red); color: #fff; }
+        .tiyong-fortune.平, .tiyong-fortune.耗 { background: #708090; color: #fff; }
+
+        .yueling-info {
+            display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 10px; padding: 10px;
+            background: rgba(0, 0, 0, 0.15); border-radius: 6px; font-size: 0.85rem;
+        }
+        .yueling-info .status { padding: 3px 12px; border-radius: 12px; font-weight: 600; }
+        .yueling-info .status.旺 { background: #FFD700; color: #000; }
+        .yueling-info .status.相 { background: #4169E1; color: #fff; }
+        .yueling-info .status.休 { background: #708090; color: #fff; }
+        .yueling-info .status.囚 { background: #8B4513; color: #fff; }
+        .yueling-info .status.死 { background: #2F2F2F; color: #fff; }
+
+        /* 五行分析 */
+        .wuxing-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+        .wuxing-flow { display: flex; justify-content: center; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .wuxing-item { text-align: center; padding: 12px 20px; background: rgba(0, 0, 0, 0.2); border-radius: 8px; min-width: 90px; }
+        .wuxing-item .element { font-size: 1.8rem; font-weight: 700; }
+        .wuxing-item .pos { font-size: 0.75rem; color: var(--text-dim); margin-top: 3px; }
+        .wuxing-arrow { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+        .wuxing-arrow .symbol { font-size: 1.3rem; color: var(--gold); }
+        .wuxing-arrow .type { font-size: 0.75rem; background: var(--gold); color: #000; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+        .wuxing-desc { text-align: center; margin-top: 12px; padding: 8px 12px; background: rgba(46, 139, 87, 0.1); border-radius: 6px; color: var(--jade); font-size: 0.85rem; }
+
+        /* 计算详情 */
+        .calc-panel { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+        .calc-grid { display: grid; gap: 6px; }
+        .calc-item { background: rgba(0, 0, 0, 0.2); padding: 8px 12px; border-radius: 5px; font-size: 0.8rem; font-family: 'Courier New', monospace; color: var(--text-dim); }
+        .calc-item strong { color: var(--gold); }
+
+        /* 复制按钮 */
+        .copy-section { text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); }
+        .btn-copy {
+            display: inline-flex; align-items: center; gap: 8px; padding: 12px 28px;
+            background: linear-gradient(135deg, var(--bg-card), var(--bg-card-alt));
+            border: 1px solid var(--gold); border-radius: 8px; color: var(--gold);
+            font-family: inherit; font-size: 1rem; cursor: pointer; transition: all 0.3s;
+        }
+        .btn-copy:hover { background: linear-gradient(135deg, var(--gold-dark), var(--gold)); color: #000; transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201, 162, 39, 0.3); }
+        .copy-tip {
+            display: inline-block; margin-left: 12px; padding: 6px 12px; background: var(--jade); color: #fff;
+            border-radius: 4px; font-size: 0.85rem; opacity: 0; transition: opacity 0.3s;
+        }
+        .copy-tip.show { opacity: 1; }
+    </style>
+</head>
+<body>
+    <div class="bg-effects">
+        <svg class="bg-taiji" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" stroke-width="2"/>
+            <path d="M50 2 A48 48 0 0 1 50 98 A24 24 0 0 1 50 50 A24 24 0 0 0 50 2" fill="currentColor"/>
+            <circle cx="50" cy="26" r="7" fill="currentColor"/>
+            <circle cx="50" cy="74" r="7" fill="var(--bg-dark)"/>
+        </svg>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>易经占卜</h1>
+            <div class="divider"></div>
+            <p>梅花易数 · 时间起卦</p>
+        </header>
+
+        <section class="input-panel">
+            <div class="input-row">
+                <div class="form-group">
+                    <label>选择时间</label>
+                    <input type="datetime-local" id="datetime-input">
+                </div>
+                <div class="form-group">
+                    <label>所问之事（选填）</label>
+                    <input type="text" id="question-input" placeholder="输入占卜问题...">
+                </div>
+                <button class="btn-divine" onclick="divine()">
+                    <svg class="btn-taiji" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" stroke-width="4"/>
+                        <path d="M50 2 A48 48 0 0 1 50 98 A24 24 0 0 1 50 50 A24 24 0 0 0 50 2" fill="currentColor"/>
+                        <circle cx="50" cy="26" r="8" fill="currentColor"/>
+                        <circle cx="50" cy="74" r="8" fill="#c9a227"/>
+                    </svg>
+                    <span>起卦</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Loading 区域 (绝对居中 & 同心修复) -->
+        <div class="loading" id="loading">
+            <div class="loading-container">
+                <!-- 层级1：外圈 -->
+                <div class="loading-ring"></div>
+                
+                <!-- 层级2：八卦阵列 (transform 极坐标定位) -->
+                <div class="loading-gua-ring">
+                    <div class="loading-gua-item">☰</div>
+                    <div class="loading-gua-item">☴</div>
+                    <div class="loading-gua-item">☲</div>
+                    <div class="loading-gua-item">☷</div>
+                    <div class="loading-gua-item">☳</div>
+                    <div class="loading-gua-item">☵</div>
+                    <div class="loading-gua-item">☶</div>
+                    <div class="loading-gua-item">☱</div>
+                </div>
+                
+                <!-- 层级3：中心太极 (SVG确保有阴阳眼) -->
+                <div class="loading-taiji">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <!-- 外圆轮廓 -->
+                        <circle cx="50" cy="50" r="48" fill="none" stroke="currentColor" stroke-width="2"/>
+                        <!-- 阳鱼 (右半+上小圆-下小圆) -->
+                        <path d="M50 2 A48 48 0 0 1 50 98 A24 24 0 0 1 50 50 A24 24 0 0 0 50 2" fill="currentColor"/>
+                        <!-- 阳眼 (上方小点) -->
+                        <circle cx="50" cy="26" r="7" fill="currentColor"/>
+                        <!-- 阴眼 (下方小点，用背景色或透明) -->
+                        <circle cx="50" cy="74" r="7" fill="var(--bg-dark, #0A0A0F)"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <!-- 六爻生成模拟 (上爻在视觉上方，动画由下至上) -->
+            <!-- 使用乾卦，象征创始 -->
+            <div class="loading-hexagram">
+                <div class="loading-yao yang"><span></span></div> <!-- 初爻 -->
+                <div class="loading-yao yang"><span></span></div> <!-- 二爻 -->
+                <div class="loading-yao yang"><span></span></div> <!-- 三爻 -->
+                <div class="loading-yao yang"><span></span></div> <!-- 四爻 -->
+                <div class="loading-yao yang"><span></span></div> <!-- 五爻 -->
+                <div class="loading-yao yang"><span></span></div> <!-- 上爻 -->
+            </div>
+            
+            <div class="loading-text-group">
+                <p class="loading-text">观象玩辞</p>
+                <p class="loading-subtext">探赜索隐，钩深致远</p>
+            </div>
+            
+            <div class="loading-progress"></div>
+        </div>
+
+        <section class="result" id="result">
+            <div class="question-box" id="question-box" style="display:none;">
+                <div class="label">所问之事</div>
+                <div class="content" id="question-content"></div>
+            </div>
+
+            <div class="time-info">
+                <div class="time-grid" id="time-grid"></div>
+            </div>
+
+            <div class="trigrams-panel">
+                <!-- 本卦 -->
+                <div class="gua-card ben" id="ben-card">
+                    <div class="gua-header">
+                        <div class="gua-type">本 卦</div>
+                        <div class="gua-name" id="ben-name">—</div>
+                    </div>
+                    <div class="gua-symbols">
+                        <div class="trigram-symbols">
+                            <div class="trigram-symbol" id="ben-upper-sym">☰</div>
+                            <div class="trigram-symbol" id="ben-lower-sym">☷</div>
+                        </div>
+                        <div class="trigram-labels">
+                            <div class="trigram-label"><span class="pos">上</span><span id="ben-upper-lbl">乾/天</span></div>
+                            <div class="trigram-label"><span class="pos">下</span><span id="ben-lower-lbl">坤/地</span></div>
+                        </div>
+                    </div>
+                    <div style="text-align:center;">
+                        <span class="dong-yao-badge" id="dong-yao-badge">动爻：第3爻</span>
+                    </div>
+                    <div class="gua-meta">
+                        <div class="gua-meta-item"><span class="k">上卦五行</span><span class="v" id="ben-upper-wx">金</span></div>
+                        <div class="gua-meta-item"><span class="k">下卦五行</span><span class="v" id="ben-lower-wx">土</span></div>
+                        <div class="gua-meta-item"><span class="k">上卦方位</span><span class="v" id="ben-upper-dir">西北</span></div>
+                        <div class="gua-meta-item"><span class="k">下卦方位</span><span class="v" id="ben-lower-dir">西南</span></div>
+                    </div>
+                    <div class="gua-text">
+                        <div class="title">卦辞</div>
+                        <div class="content" id="ben-judgement">—</div>
+                    </div>
+                    <div class="gua-text">
+                        <div class="title">象曰</div>
+                        <div class="content" id="ben-desc">—</div>
+                    </div>
+                    <div class="dong-yao-ci" id="dong-yao-ci-box">
+                        <div class="title">动爻爻辞</div>
+                        <div class="content" id="dong-yao-ci">—</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <span class="fortune-tag" id="ben-fortune">中</span>
+                    </div>
+                </div>
+
+                <!-- 互卦 -->
+                <div class="gua-card hu" id="hu-card">
+                    <div class="gua-header">
+                        <div class="gua-type">互 卦</div>
+                        <div class="gua-name" id="hu-name">—</div>
+                    </div>
+                    <div class="gua-symbols">
+                        <div class="trigram-symbols">
+                            <div class="trigram-symbol" id="hu-upper-sym">☰</div>
+                            <div class="trigram-symbol" id="hu-lower-sym">☷</div>
+                        </div>
+                        <div class="trigram-labels">
+                            <div class="trigram-label"><span class="pos">上</span><span id="hu-upper-lbl">乾/天</span></div>
+                            <div class="trigram-label"><span class="pos">下</span><span id="hu-lower-lbl">坤/地</span></div>
+                        </div>
+                    </div>
+                    <div class="gua-meta">
+                        <div class="gua-meta-item"><span class="k">上卦五行</span><span class="v" id="hu-upper-wx">金</span></div>
+                        <div class="gua-meta-item"><span class="k">下卦五行</span><span class="v" id="hu-lower-wx">土</span></div>
+                        <div class="gua-meta-item"><span class="k">上卦方位</span><span class="v" id="hu-upper-dir">西北</span></div>
+                        <div class="gua-meta-item"><span class="k">下卦方位</span><span class="v" id="hu-lower-dir">西南</span></div>
+                    </div>
+                    <div class="gua-text">
+                        <div class="title">卦辞</div>
+                        <div class="content" id="hu-judgement">—</div>
+                    </div>
+                    <div class="gua-text">
+                        <div class="title">象曰</div>
+                        <div class="content" id="hu-desc">—</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <span class="fortune-tag" id="hu-fortune">中</span>
+                    </div>
+                </div>
+
+                <!-- 变卦 -->
+                <div class="gua-card bian" id="bian-card">
+                    <div class="gua-header">
+                        <div class="gua-type">变 卦</div>
+                        <div class="gua-name" id="bian-name">—</div>
+                    </div>
+                    <div class="gua-symbols">
+                        <div class="trigram-symbols">
+                            <div class="trigram-symbol" id="bian-upper-sym">☰</div>
+                            <div class="trigram-symbol" id="bian-lower-sym">☷</div>
+                        </div>
+                        <div class="trigram-labels">
+                            <div class="trigram-label"><span class="pos">上</span><span id="bian-upper-lbl">乾/天</span></div>
+                            <div class="trigram-label"><span class="pos">下</span><span id="bian-lower-lbl">坤/地</span></div>
+                        </div>
+                    </div>
+                    <div class="gua-meta">
+                        <div class="gua-meta-item"><span class="k">上卦五行</span><span class="v" id="bian-upper-wx">金</span></div>
+                        <div class="gua-meta-item"><span class="k">下卦五行</span><span class="v" id="bian-lower-wx">土</span></div>
+                        <div class="gua-meta-item"><span class="k">上卦方位</span><span class="v" id="bian-upper-dir">西北</span></div>
+                        <div class="gua-meta-item"><span class="k">下卦方位</span><span class="v" id="bian-lower-dir">西南</span></div>
+                    </div>
+                    <div class="gua-text">
+                        <div class="title">卦辞</div>
+                        <div class="content" id="bian-judgement">—</div>
+                    </div>
+                    <div class="gua-text">
+                        <div class="title">象曰</div>
+                        <div class="content" id="bian-desc">—</div>
+                    </div>
+                    <div style="text-align:center;">
+                        <span class="fortune-tag" id="bian-fortune">中</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 体用分析 -->
+            <div class="tiyong-panel">
+                <div class="panel-title">体用生克分析</div>
+                <div class="tiyong-content">
+                    <div class="tiyong-item" id="ti-item">
+                        <div class="type-label">体卦（主体）</div>
+                        <div class="gua-sym" id="ti-sym">☰</div>
+                        <div class="gua-info">
+                            <div class="name" id="ti-name">乾</div>
+                            <div class="element" id="ti-element">五行：金</div>
+                        </div>
+                    </div>
+                    <div class="tiyong-relation">
+                        <div class="arrow">⇌</div>
+                        <div class="type" id="tiyong-relation">用生体</div>
+                    </div>
+                    <div class="tiyong-item" id="yong-item">
+                        <div class="type-label">用卦（环境）</div>
+                        <div class="gua-sym" id="yong-sym">☷</div>
+                        <div class="gua-info">
+                            <div class="name" id="yong-name">坤</div>
+                            <div class="element" id="yong-element">五行：土</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="tiyong-analysis" id="tiyong-analysis">
+                    用生体，外部环境助益主体，事顺利，有贵人相助
+                    <span class="tiyong-fortune 吉" id="tiyong-fortune">吉</span>
+                </div>
+                <div class="yueling-info">
+                    <span>月令：</span>
+                    <span class="status 旺" id="yueling-status">旺</span>
+                    <span id="yueling-desc">体卦当令得时，气势旺盛</span>
+                </div>
+            </div>
+
+            <!-- 五行分析 -->
+            <div class="wuxing-panel">
+                <div class="panel-title">本卦五行分析</div>
+                <div class="wuxing-flow">
+                    <div class="wuxing-item">
+                        <div class="element" id="wx-upper">金</div>
+                        <div class="pos">上卦</div>
+                    </div>
+                    <div class="wuxing-arrow">
+                        <span class="symbol">⇌</span>
+                        <span class="type" id="wx-relation">比和</span>
+                    </div>
+                    <div class="wuxing-item">
+                        <div class="element" id="wx-lower">土</div>
+                        <div class="pos">下卦</div>
+                    </div>
+                </div>
+                <div class="wuxing-desc" id="wx-desc">势均力敌，平稳之象</div>
+            </div>
+
+            <!-- 计算详情 -->
+            <div class="calc-panel">
+                <div class="panel-title">起卦计算详情</div>
+                <div class="calc-grid" id="calc-grid"></div>
+            </div>
+
+            <!-- 复制按钮 -->
+            <div class="copy-section">
+                <button class="btn-copy" onclick="copyResult()">
+                    <span class="copy-icon">📋</span>
+                    <span>复制占卜结果</span>
+                </button>
+                <span class="copy-tip" id="copy-tip"></span>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const now = new Date();
+            // 校正时区
+            const offset = now.getTimezoneOffset() * 60000;
+            document.getElementById('datetime-input').value = new Date(now - offset).toISOString().slice(0, 16);
+        });
+
+        async function divine() {
+            const datetime = document.getElementById('datetime-input').value;
+            const question = document.getElementById('question-input').value;
+
+            if (!datetime) {
+                alert('请选择占卜时间');
+                return;
+            }
+
+            const loadingEl = document.getElementById('loading');
+            const resultEl = document.getElementById('result');
+
+            // 1. 隐藏旧结果
+            resultEl.classList.remove('show');
+
+            // 2. 显示 Loading (Flex布局)
+            loadingEl.style.display = 'flex';
+            // 强制重绘以触发 opacity transition
+            requestAnimationFrame(() => {
+                loadingEl.classList.add('show');
+            });
+
+            try {
+                const res = await fetch('/api/divine', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ datetime, question })
+                });
+
+                const data = await res.json();
+                
+                // 3. 强制等待动画展示 (至少2秒)
+                await new Promise(r => setTimeout(r, 1500));
+
+                // 4. 隐藏 Loading
+                loadingEl.classList.remove('show');
+                // 等待淡出动画(0.5s)完成后再设为 none
+                setTimeout(() => {
+                    loadingEl.style.display = 'none';
+                }, 500); 
+
+                // 5. 渲染并显示结果
+                render(data);
+                resultEl.classList.add('show');
+                resultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            } catch (e) {
+                console.error(e);
+                // 错误处理：隐藏loading
+                loadingEl.classList.remove('show');
+                setTimeout(() => loadingEl.style.display = 'none', 500);
+                alert('占卜失败，请检查网络或重试');
+            }
+        }
+
+        let lastDivineData = null;
+
+        function render(d) {
+            lastDivineData = d;
+
+            // 问题
+            if (d.question) {
+                document.getElementById('question-box').style.display = 'block';
+                document.getElementById('question-content').textContent = d.question;
+            } else {
+                document.getElementById('question-box').style.display = 'none';
+            }
+
+            // 时间信息
+            const ti = d.time_info;
+            const leapBadge = ti.is_leap_month ? '<span class="leap-badge">闰</span>' : '';
+            document.getElementById('time-grid').innerHTML = `
+                <div class="time-item lunar"><div class="label">公历</div><div class="value">${ti.solar_date}</div></div>
+                <div class="time-item lunar ${ti.is_leap_month ? 'leap-month' : ''}"><div class="label">农历${leapBadge}</div><div class="value">${ti.lunar_date}</div></div>
+                <div class="time-item"><div class="label">年柱</div><div class="value">${ti.year_ganzhi}</div></div>
+                <div class="time-item"><div class="label">月柱</div><div class="value">${ti.month_ganzhi}</div></div>
+                <div class="time-item"><div class="label">日柱</div><div class="value">${ti.day_ganzhi}</div></div>
+                <div class="time-item"><div class="label">时辰</div><div class="value">${ti.shichen}</div></div>
+                <div class="time-item"><div class="label">生肖</div><div class="value">${ti.shengxiao}</div></div>
+            `;
+
+            // 填充三卦
+            fillGua('ben', d.ben_gua, d.ben_gua.dong_yao);
+            
+            // 动爻爻辞
+            if (d.ben_gua.dong_yao_ci) {
+                document.getElementById('dong-yao-ci').textContent = d.ben_gua.dong_yao_ci;
+                document.getElementById('dong-yao-ci-box').style.display = 'block';
+            } else {
+                document.getElementById('dong-yao-ci-box').style.display = 'none';
+            }
+
+            fillGua('hu', d.hu_gua);
+            fillGua('bian', d.bian_gua);
+
+            // 体用分析
+            const ty = d.ti_yong;
+            document.getElementById('ti-sym').textContent = ty.ti_gua.symbol;
+            document.getElementById('ti-name').textContent = ty.ti_gua.name + '（' + ty.ti_gua.position + '）';
+            document.getElementById('ti-element').textContent = '五行：' + ty.ti_gua.element;
+            document.getElementById('yong-sym').textContent = ty.yong_gua.symbol;
+            document.getElementById('yong-name').textContent = ty.yong_gua.name + '（' + ty.yong_gua.position + '）';
+            document.getElementById('yong-element').textContent = '五行：' + ty.yong_gua.element;
+            document.getElementById('tiyong-relation').textContent = ty.relation;
+            document.getElementById('tiyong-analysis').innerHTML = ty.analysis + 
+                ` <span class="tiyong-fortune ${ty.fortune}">${ty.fortune}</span>`;
+
+            // 月令
+            const yl = d.yueling;
+            const ylStatus = document.getElementById('yueling-status');
+            ylStatus.textContent = yl.status;
+            ylStatus.className = 'status ' + yl.status;
+            document.getElementById('yueling-desc').textContent = yl.description;
+
+            // 五行
+            document.getElementById('wx-upper').textContent = d.wuxing_analysis.upper_element;
+            document.getElementById('wx-upper').style.color = d.wuxing_analysis.upper_color;
+            document.getElementById('wx-lower').textContent = d.wuxing_analysis.lower_element;
+            document.getElementById('wx-lower').style.color = d.wuxing_analysis.lower_color;
+            document.getElementById('wx-relation').textContent = d.wuxing_analysis.relation;
+            document.getElementById('wx-desc').textContent = d.wuxing_analysis.relation_desc || '—';
+
+            // 计算详情
+            const cd = d.calculation_detail;
+            document.getElementById('calc-grid').innerHTML = `
+                <div class="calc-item"><strong>上卦：</strong>${cd.upper_calc}</div>
+                <div class="calc-item"><strong>下卦：</strong>${cd.lower_calc}</div>
+                <div class="calc-item"><strong>动爻：</strong>${cd.dong_yao_calc}</div>
+            `;
+        }
+
+        function fillGua(prefix, gua, dongYao) {
+            document.getElementById(`${prefix}-name`).textContent = gua.name;
+            document.getElementById(`${prefix}-upper-sym`).textContent = gua.upper.symbol;
+            document.getElementById(`${prefix}-upper-lbl`).textContent = `${gua.upper.name}/${gua.upper.nature}`;
+            document.getElementById(`${prefix}-lower-sym`).textContent = gua.lower.symbol;
+            document.getElementById(`${prefix}-lower-lbl`).textContent = `${gua.lower.name}/${gua.lower.nature}`;
+            document.getElementById(`${prefix}-upper-wx`).textContent = gua.upper.element;
+            document.getElementById(`${prefix}-lower-wx`).textContent = gua.lower.element;
+            document.getElementById(`${prefix}-upper-dir`).textContent = gua.upper.direction;
+            document.getElementById(`${prefix}-lower-dir`).textContent = gua.lower.direction;
+            document.getElementById(`${prefix}-judgement`).textContent = gua.judgement;
+            document.getElementById(`${prefix}-desc`).textContent = gua.description;
+
+            const fortuneEl = document.getElementById(`${prefix}-fortune`);
+            fortuneEl.textContent = gua.fortune;
+            fortuneEl.className = `fortune-tag ${gua.fortune}`;
+
+            if (prefix === 'ben' && dongYao !== undefined) {
+                document.getElementById('dong-yao-badge').textContent = `动爻：第${dongYao}爻`;
+            }
+        }
+
+        function copyResult() {
+            if (!lastDivineData) {
+                alert('暂无占卜结果');
+                return;
+            }
+
+            const d = lastDivineData;
+            const ti = d.time_info;
+            const ty = d.ti_yong;
+            const yl = d.yueling;
+            const wx = d.wuxing_analysis;
+            const cd = d.calculation_detail;
+
+            let text = `【梅花易数占卜结果】\n`;
+            text += `═══════════════════════════\n\n`;
+
+            if (d.question) {
+                text += `📌 所问之事：${d.question}\n\n`;
+            }
+
+            text += `⏰ 起卦时间\n`;
+            text += `├─ 公历：${ti.solar_date}\n`;
+            text += `├─ 农历：${ti.lunar_date}${ti.is_leap_month ? '【闰月】' : ''}\n`;
+            text += `├─ 干支：${ti.full_ganzhi}\n`;
+            text += `└─ 生肖：${ti.shengxiao}\n\n`;
+
+            text += `🔮 本卦：${d.ben_gua.name}\n`;
+            text += `├─ 卦象：${d.ben_gua.upper.symbol}${d.ben_gua.lower.symbol}（上${d.ben_gua.upper.name}下${d.ben_gua.lower.name}）\n`;
+            text += `├─ 动爻：第${d.ben_gua.dong_yao}爻\n`;
+            if (d.ben_gua.dong_yao_ci) {
+                text += `├─ 爻辞：${d.ben_gua.dong_yao_ci}\n`;
+            }
+            text += `├─ 卦辞：${d.ben_gua.judgement}\n`;
+            text += `├─ 象曰：${d.ben_gua.description}\n`;
+            text += `└─ 吉凶：${d.ben_gua.fortune}\n\n`;
+
+            text += `🔄 互卦：${d.hu_gua.name}\n`;
+            text += `├─ 卦象：${d.hu_gua.upper.symbol}${d.hu_gua.lower.symbol}（上${d.hu_gua.upper.name}下${d.hu_gua.lower.name}）\n`;
+            text += `└─ 吉凶：${d.hu_gua.fortune}\n\n`;
+
+            text += `➡️ 变卦：${d.bian_gua.name}\n`;
+            text += `├─ 卦象：${d.bian_gua.upper.symbol}${d.bian_gua.lower.symbol}（上${d.bian_gua.upper.name}下${d.bian_gua.lower.name}）\n`;
+            text += `└─ 吉凶：${d.bian_gua.fortune}\n\n`;
+
+            text += `⚖️ 体用分析\n`;
+            text += `├─ 体卦：${ty.ti_gua.name}（${ty.ti_gua.position}）五行${ty.ti_gua.element}\n`;
+            text += `├─ 用卦：${ty.yong_gua.name}（${ty.yong_gua.position}）五行${ty.yong_gua.element}\n`;
+            text += `├─ 关系：${ty.relation}（${ty.fortune}）\n`;
+            text += `├─ 分析：${ty.analysis}\n`;
+            text += `└─ 月令：${yl.status} - ${yl.description}\n\n`;
+
+            text += `📊 计算详情\n`;
+            text += `├─ ${cd.upper_calc}\n`;
+            text += `├─ ${cd.lower_calc}\n`;
+            text += `└─ ${cd.dong_yao_calc}\n`;
+
+            text += `\n═══════════════════════════\n`;
+
+            navigator.clipboard.writeText(text).then(() => {
+                const tip = document.getElementById('copy-tip');
+                tip.textContent = '✓ 已复制';
+                tip.classList.add('show');
+                setTimeout(() => {
+                    tip.classList.remove('show');
+                }, 2000);
+            }).catch(err => {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                
+                const tip = document.getElementById('copy-tip');
+                tip.textContent = '✓ 已复制';
+                tip.classList.add('show');
+                setTimeout(() => {
+                    tip.classList.remove('show');
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

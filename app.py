@@ -4,8 +4,11 @@
 import time
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from zhdate import ZhDate
+
+# 定义中国标准时区 (UTC+8)
+CHINA_TZ = timezone(timedelta(hours=8))
 
 app = Flask(__name__)
 CORS(app)
@@ -783,12 +786,18 @@ YAOS_TO_GUA = {
     (0, 0, 0): 8,  # 坤
 }
 
+class LunarConversionError(Exception):
+    """农历转换失败异常"""
+    pass
+
+
 def solar_to_lunar(year, month, day):
     """
     公历转农历
     返回：(农历年, 农历月, 农历日, 是否闰月)
     
     zhdate库使用 leap_month 布尔属性表示是否为闰月
+    转换失败时抛出 LunarConversionError 异常
     """
     try:
         lunar = ZhDate.from_datetime(datetime(year, month, day))
@@ -800,9 +809,9 @@ def solar_to_lunar(year, month, day):
         is_leap = getattr(lunar, 'leap_month', False)
         
         return lunar_year, lunar_month, lunar_day, is_leap
-    except Exception as e:
-        # 如果转换失败，返回公历（非闰月）
-        return year, month, day, False
+    except (ValueError, TypeError) as e:
+        # 农历转换失败，抛出明确错误
+        raise LunarConversionError(f"农历转换失败：公历 {year}-{month}-{day} 无法转换为农历，原因：{str(e)}")
 
 
 def get_ganzhi_year(lunar_year):
@@ -870,20 +879,17 @@ def calculate_gua(lunar_year, lunar_month, lunar_day, shichen_num):
     
     # 计算上卦
     upper_sum = year_zhi + lunar_month + lunar_day
-    upper_gua = upper_sum % 8
-    if upper_gua == 0:
-        upper_gua = 8
+    upper_rem = upper_sum % 8  # 原始余数
+    upper_gua = upper_rem if upper_rem != 0 else 8  # 余数为0则取8
     
     # 计算下卦（加上时辰）
     lower_sum = upper_sum + shichen_num
-    lower_gua = lower_sum % 8
-    if lower_gua == 0:
-        lower_gua = 8
+    lower_rem = lower_sum % 8  # 原始余数
+    lower_gua = lower_rem if lower_rem != 0 else 8  # 余数为0则取8
     
     # 计算动爻（用下卦总数）
-    dong_yao = lower_sum % 6
-    if dong_yao == 0:
-        dong_yao = 6
+    dong_yao_rem = lower_sum % 6  # 原始余数
+    dong_yao = dong_yao_rem if dong_yao_rem != 0 else 6  # 余数为0则取6
     
     return upper_gua, lower_gua, dong_yao, {
         "year_zhi": year_zhi,
@@ -892,7 +898,11 @@ def calculate_gua(lunar_year, lunar_month, lunar_day, shichen_num):
         "shichen_num": shichen_num,
         "upper_sum": upper_sum,
         "lower_sum": lower_sum,
-        "yao_sum": lower_sum  # 动爻计算用的是下卦总数
+        "yao_sum": lower_sum,  # 动爻计算用的是下卦总数
+        # 保留原始余数用于展示
+        "upper_rem": upper_rem,
+        "lower_rem": lower_rem,
+        "dong_yao_rem": dong_yao_rem
     }
 
 
@@ -944,18 +954,36 @@ def get_bian_gua(upper, lower, dong_yao):
     return new_upper, new_lower
 
 
+# 五行关系标准枚举（用于逻辑判断）
+# 统一命名：比和 / 上生下 / 下生上 / 上克下 / 下克上
+WUXING_RELATION = {
+    "比和": "比和",      # 同五行
+    "上生下": "泄",       # 上卦五行生下卦五行
+    "下生上": "生",       # 下卦五行生上卦五行
+    "上克下": "克",       # 上卦五行克下卦五行
+    "下克上": "被克"      # 下卦五行克上卦五行
+}
+
+
 def analyze_wuxing_relation(element1, element2):
-    """分析五行关系"""
+    """
+    分析五行关系（element1 对 element2 的关系）
+    返回：(标准关系枚举, 显示描述)
+    """
     if element1 == element2:
         return "比和", "势均力敌，平稳之象"
     if WUXING[element1]["generates"] == element2:
-        return "生出", f"{element1}生{element2}，气泄之象"
+        # element1 生 element2 = 上生下（泄气）
+        return "上生下", f"{element1}生{element2}，气泄之象"
     if WUXING[element1]["generated_by"] == element2:
-        return "受生", f"{element2}生{element1}，得助之象"
+        # element2 生 element1 = 下生上（得助）
+        return "下生上", f"{element2}生{element1}，得助之象"
     if WUXING[element1]["overcomes"] == element2:
-        return "克出", f"{element1}克{element2}，制约之象"
+        # element1 克 element2 = 上克下
+        return "上克下", f"{element1}克{element2}，制约之象"
     if WUXING[element1]["overcome_by"] == element2:
-        return "受克", f"{element2}克{element1}，受制之象"
+        # element2 克 element1 = 下克上（受制）
+        return "下克上", f"{element2}克{element1}，受制之象"
     return "无直接关系", ""
 
 
@@ -966,6 +994,8 @@ def analyze_ti_yong(upper, lower, dong_yao):
     用卦：有动爻的卦，代表外部环境
     动爻1-3在下卦，则下卦为用，上卦为体
     动爻4-6在上卦，则上卦为用，下卦为体
+    
+    关系统一使用标准枚举：比和 / 用生体 / 体生用 / 体克用 / 用克体
     """
     if dong_yao <= 3:
         ti_gua = upper  # 上卦为体
@@ -981,29 +1011,35 @@ def analyze_ti_yong(upper, lower, dong_yao):
     ti_element = BAGUA[ti_gua]['element']
     yong_element = BAGUA[yong_gua]['element']
     
-    # 分析体用生克关系
+    # 分析体用生克关系（使用统一的标准命名）
     if ti_element == yong_element:
         relation = "比和"
+        relation_type = "比和"  # 标准类型
         fortune = "平"
         analysis = "体用比和，势均力敌，事可成但需努力"
     elif WUXING[yong_element]["generates"] == ti_element:
         relation = "用生体"
+        relation_type = "生"    # 体得生助
         fortune = "吉"
         analysis = "用生体，外部环境助益主体，事顺利，有贵人相助"
     elif WUXING[ti_element]["generates"] == yong_element:
         relation = "体生用"
+        relation_type = "泄"    # 体气外泄
         fortune = "耗"
         analysis = "体生用，主体气泄，付出多回报少，宜守不宜进"
     elif WUXING[ti_element]["overcomes"] == yong_element:
         relation = "体克用"
+        relation_type = "克"    # 体制用
         fortune = "平"
         analysis = "体克用，主体制约环境，需努力可成，先难后易"
     elif WUXING[yong_element]["overcomes"] == ti_element:
         relation = "用克体"
+        relation_type = "被克"  # 体受制
         fortune = "凶"
         analysis = "用克体，外部压力大，阻碍重重，宜退避观望"
     else:
         relation = "无直接关系"
+        relation_type = "无"
         fortune = "平"
         analysis = "体用关系不明显"
     
@@ -1020,7 +1056,8 @@ def analyze_ti_yong(upper, lower, dong_yao):
             "element": yong_element,
             "position": yong_pos
         },
-        "relation": relation,
+        "relation": relation,           # 体用关系（显示用）
+        "relation_type": relation_type, # 标准关系类型（逻辑判断用）
         "fortune": fortune,
         "analysis": analysis
     }
@@ -1054,6 +1091,42 @@ def get_yueling_analysis(lunar_month, ti_element):
         "wang_element": yueling["旺"],
         "description": desc
     }
+
+
+def _format_upper_calc(year_zhi, lunar_month, lunar_day, total, rem, gua_name):
+    """
+    格式化上卦计算过程的展示
+    展示完整的加法过程和取余过程
+    """
+    formula = f"({year_zhi}+{lunar_month}+{lunar_day})"
+    if rem == 0:
+        return f"{formula} % 8 = {total} % 8 = 0 → 8（{gua_name}）"
+    else:
+        return f"{formula} % 8 = {total} % 8 = {rem}（{gua_name}）"
+
+
+def _format_lower_calc(year_zhi, lunar_month, lunar_day, shichen, total, rem, gua_name):
+    """
+    格式化下卦计算过程的展示
+    展示完整的加法过程和取余过程
+    """
+    formula = f"({year_zhi}+{lunar_month}+{lunar_day}+{shichen})"
+    if rem == 0:
+        return f"{formula} % 8 = {total} % 8 = 0 → 8（{gua_name}）"
+    else:
+        return f"{formula} % 8 = {total} % 8 = {rem}（{gua_name}）"
+
+
+def _format_yao_calc(year_zhi, lunar_month, lunar_day, shichen, total, rem, final):
+    """
+    格式化动爻计算过程的展示
+    展示完整的加法过程和取余过程
+    """
+    formula = f"({year_zhi}+{lunar_month}+{lunar_day}+{shichen})"
+    if rem == 0:
+        return f"{formula} % 6 = {total} % 6 = 0 → 6（第六爻）"
+    else:
+        return f"{formula} % 6 = {total} % 6 = {rem}（第{final}爻）"
 
 
 def get_gua_info(upper, lower, dong_yao=None):
@@ -1110,17 +1183,41 @@ def index():
 @app.route('/api/divine', methods=['POST'])
 def divine():
     """占卜API"""
-    data = request.json
+    data = request.json or {}
     datetime_str = data.get('datetime')
     question = data.get('question', '')
     
+    # 1. datetime 缺失或非法时返回 400 错误
+    if not datetime_str:
+        return jsonify({
+            "error": "invalid_datetime",
+            "message": "缺少 datetime 参数，请提供有效的日期时间（推荐格式：2025-01-05T14:30:00+08:00）"
+        }), 400
+    
     try:
         dt = datetime.fromisoformat(datetime_str)
-    except:
-        dt = datetime.now()
+    except (ValueError, TypeError) as e:
+        return jsonify({
+            "error": "invalid_datetime",
+            "message": f"datetime 格式非法：{datetime_str}，请使用 ISO 格式（如：2025-01-05T14:30:00+08:00）"
+        }), 400
     
-    # 公历转农历（包含闰月信息）
-    lunar_year, lunar_month, lunar_day, is_leap_month = solar_to_lunar(dt.year, dt.month, dt.day)
+    # 2. 统一时区处理：如果没有时区信息，假定为 +08:00；否则转换到 +08:00
+    if dt.tzinfo is None:
+        # 无时区信息，假定为中国标准时间
+        dt = dt.replace(tzinfo=CHINA_TZ)
+    else:
+        # 有时区信息，统一转换到中国标准时间
+        dt = dt.astimezone(CHINA_TZ)
+    
+    # 3. 公历转农历（包含闰月信息），失败时返回错误
+    try:
+        lunar_year, lunar_month, lunar_day, is_leap_month = solar_to_lunar(dt.year, dt.month, dt.day)
+    except LunarConversionError as e:
+        return jsonify({
+            "error": "lunar_conversion_failed",
+            "message": str(e)
+        }), 400
     
     # 计算干支
     year_gz, shengxiao = get_ganzhi_year(lunar_year)
@@ -1162,6 +1259,7 @@ def divine():
     leap_prefix = "闰" if is_leap_month else ""
     lunar_date_str = f"农历{lunar_year}年{leap_prefix}{lunar_month}月{lunar_day}日"
     
+    
     result = {
         "time_info": {
             "solar_date": dt.strftime("%Y年%m月%d日 %H:%M"),
@@ -1193,9 +1291,18 @@ def divine():
             "lunar_month": f"月数={calc_detail['lunar_month']}" + ("（闰月，按所闰月份计算）" if is_leap_month else ""),
             "lunar_day": f"日数={calc_detail['lunar_day']}",
             "shichen": f"时辰数={calc_detail['shichen_num']}",
-            "upper_calc": f"上卦=({calc_detail['year_zhi']}+{calc_detail['lunar_month']}+{calc_detail['lunar_day']}) % 8 = {calc_detail['upper_sum']} % 8 = {upper}（{BAGUA[upper]['name']}）",
-            "lower_calc": f"下卦=({calc_detail['year_zhi']}+{calc_detail['lunar_month']}+{calc_detail['lunar_day']}+{calc_detail['shichen_num']}) % 8 = {calc_detail['lower_sum']} % 8 = {lower}（{BAGUA[lower]['name']}）",
-            "dong_yao_calc": f"动爻={calc_detail['yao_sum']} % 6 = {dong_yao}",
+            "upper_calc": _format_upper_calc(
+                calc_detail['year_zhi'], calc_detail['lunar_month'], calc_detail['lunar_day'],
+                calc_detail['upper_sum'], calc_detail['upper_rem'], BAGUA[upper]['name']
+            ),
+            "lower_calc": _format_lower_calc(
+                calc_detail['year_zhi'], calc_detail['lunar_month'], calc_detail['lunar_day'], calc_detail['shichen_num'],
+                calc_detail['lower_sum'], calc_detail['lower_rem'], BAGUA[lower]['name']
+            ),
+            "dong_yao_calc": _format_yao_calc(
+                calc_detail['year_zhi'], calc_detail['lunar_month'], calc_detail['lunar_day'], calc_detail['shichen_num'],
+                calc_detail['yao_sum'], calc_detail['dong_yao_rem'], dong_yao
+            ),
             "is_leap_month": is_leap_month
         }
     }

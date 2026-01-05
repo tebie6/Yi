@@ -604,7 +604,7 @@
         <section class="input-panel">
             <div class="input-row">
                 <div class="form-group">
-                    <label>选择时间</label>
+                    <label>选择时间 <span style="font-size:0.7rem;color:var(--text-dim);">(北京时间)</span></label>
                     <input type="datetime-local" id="datetime-input">
                 </div>
                 <div class="form-group">
@@ -911,7 +911,19 @@
 
                 const data = await res.json();
                 
-                // 3. 强制等待动画展示 (至少2秒)
+                // 检查是否有错误响应
+                if (!res.ok || data.error) {
+                    // 隐藏 Loading
+                    loadingEl.classList.remove('show');
+                    setTimeout(() => loadingEl.style.display = 'none', 500);
+                    
+                    // 显示具体错误信息
+                    const errorMsg = data.message || data.error || '未知错误';
+                    alert(`占卜失败：${errorMsg}`);
+                    return;
+                }
+                
+                // 3. 强制等待动画展示 (至少1.5秒)
                 await new Promise(r => setTimeout(r, 1500));
 
                 // 4. 隐藏 Loading
@@ -931,7 +943,7 @@
                 // 错误处理：隐藏loading
                 loadingEl.classList.remove('show');
                 setTimeout(() => loadingEl.style.display = 'none', 500);
-                alert('占卜失败，请检查网络或重试');
+                alert('占卜失败：网络连接错误，请检查网络后重试');
             }
         }
 
@@ -1009,6 +1021,7 @@
                 <div class="calc-item"><strong>下卦：</strong>${cd.lower_calc}</div>
                 <div class="calc-item"><strong>动爻：</strong>${cd.dong_yao_calc}</div>
             `;
+
         }
 
         function fillGua(prefix, gua, dongYao) {

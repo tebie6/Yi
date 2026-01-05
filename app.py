@@ -822,13 +822,16 @@ def get_ganzhi_month(lunar_year, lunar_month):
 
 
 def get_ganzhi_day(year, month, day):
-    """计算日期的天干地支"""
+    """
+    计算日期的天干地支
+    基准：1900年1月1日是甲戌日（甲=0，戌=10）
+    """
     from datetime import date
-    base = date(1900, 1, 31)
+    base = date(1900, 1, 1)
     current = date(year, month, day)
     diff = (current - base).days
-    gan_idx = diff % 10
-    zhi_idx = diff % 12
+    gan_idx = diff % 10  # 甲=0
+    zhi_idx = (diff + 10) % 12  # 戌=10
     return TIANGAN[gan_idx] + DIZHI[zhi_idx]
 
 
